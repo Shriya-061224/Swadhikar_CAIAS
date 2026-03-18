@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Link } from "wouter";
-import { Send, Mic, ArrowLeft, Globe } from "lucide-react";
+import { Send, Mic, ArrowLeft, Globe, RefreshCcw } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useChatSession, LANGUAGES, type ChatMessage } from "@/hooks/use-chat-session";
 import { ChatBubble } from "@/components/chat-bubble";
@@ -35,6 +35,7 @@ export default function ChatPage() {
   const [inputValue, setInputValue] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showLanguageMenu, setShowLanguageMenu] = useState(false);
+  const [isListening, setIsListening] = useState(false);
 
   // Auto-scroll to bottom
   const scrollToBottom = () => {
@@ -50,6 +51,44 @@ export default function ChatPage() {
     if (!inputValue.trim()) return;
     sendMessage(inputValue);
     setInputValue("");
+  };
+
+  const handleVoiceInput = () => {
+    // @ts-ignore
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Speech recognition is not supported in this browser.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = language === "en" ? "en-IN" : `${language}-IN`;
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    recognition.onstart = () => {
+      setIsListening(true);
+    };
+
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      sendMessage(transcript);
+    };
+
+    recognition.onerror = (event: any) => {
+      console.error("Speech recognition error", event.error);
+      setIsListening(false);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognition.start();
+  };
+
+  const handleRefresh = () => {
+    window.location.reload();
   };
 
   const handleQuickReply = (reply: string) => {
@@ -80,9 +119,19 @@ export default function ChatPage() {
           </div>
         </div>
 
-        {/* Language Selector */}
-        <div className="relative">
-          <button 
+        <div className="flex items-center gap-2">
+          {/* Refresh Button */}
+          <button
+            onClick={handleRefresh}
+            className="flex items-center justify-center w-[34px] h-[34px] rounded-full bg-accent/50 hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+            title="Refresh"
+          >
+            <RefreshCcw className="w-[18px] h-[18px]" />
+          </button>
+
+          {/* Language Selector */}
+          <div className="relative">
+            <button 
             onClick={() => setShowLanguageMenu(!showLanguageMenu)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-accent/50 hover:bg-accent text-sm font-medium transition-colors"
           >
@@ -125,6 +174,7 @@ export default function ChatPage() {
               </>
             )}
           </AnimatePresence>
+        </div>
         </div>
       </header>
 
@@ -173,10 +223,17 @@ export default function ChatPage() {
         <form onSubmit={handleSend} className="flex items-end gap-2 relative">
           <button 
             type="button" 
-            className="p-3 text-muted-foreground hover:text-primary transition-colors flex-shrink-0"
-            title="Voice input (coming soon)"
+            onClick={handleVoiceInput}
+            className={cn(
+              "p-3 transition-colors flex-shrink-0 relative",
+              isListening ? "text-red-500 animate-pulse" : "text-muted-foreground hover:text-primary"
+            )}
+            title={isListening ? "Listening..." : "Tap to speak"}
           >
             <Mic className="w-6 h-6" />
+            {isListening && (
+              <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-red-500" />
+            )}
           </button>
           
           <div className="flex-1 relative">
